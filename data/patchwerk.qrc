@@ -1,0 +1,7 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!-- Copyright (c) 2026 Thomas Makin -->
+<RCC>
+    <qresource prefix="/">
+        <file alias="patchwerk.png">icons/hicolor/256x256/apps/patchwerk.png</file>
+    </qresource>
+</RCC>

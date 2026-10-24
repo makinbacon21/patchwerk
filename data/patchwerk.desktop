@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Thomas Makin
+
+[Desktop Entry]
+Type=Application
+Name=Patchwerk
+GenericName=Patch Review
+Comment=Inline review of Linux mailing list patches
+Exec=patchwerk %f
+Icon=patchwerk
+Terminal=false
+Categories=Development;RevisionControl;Qt;
+Keywords=patch;review;kernel;lore;b4;mailing list;
