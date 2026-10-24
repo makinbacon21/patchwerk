@@ -32,6 +32,14 @@ Needs Qt 6.8+, `git` and `b4`. Sending uses `git send-email` by default (package
 
 LLM features use any OpenAI-compatible `/chat/completions` endpoint (Settings). The default is a local Ollama.
 
+## Screenshots
+
+![Patchwerk screenshot showing an inline comment](meta/patchwerk1.png)
+
+![Patchwerk screenshot showing new comment interface](meta/patchwerk2.png)
+
+![Patchwerk screenshot showing pending replies and raw draft email replies](meta/patchwerk3.png)
+
 ## AI Usage
 
 Dev assisted primarily via Claude Opus 5.5.
