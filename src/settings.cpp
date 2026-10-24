@@ -18,6 +18,9 @@
 #include <QStyleFactory>
 #include <QStyleHints>
 
+#include <KSyntaxHighlighting/Repository>
+#include <KSyntaxHighlighting/Theme>
+
 namespace {
 
 const QMap<QString, QVariant> defaults{
@@ -32,6 +35,7 @@ const QMap<QString, QVariant> defaults{
     {"refresh/minutes", 5},
     {"mail/sendCommand", "git send-email --confirm=never"},
     {"ui/theme", "system"},
+    {"ui/syntaxTheme", "Automatic"},
 };
 
 QPalette makePalette(bool dark)
@@ -146,6 +150,12 @@ bool showSettings(QWidget *parent)
     form->addRow("Auto refresh", refresh);
     form->addRow("Send command", send);
     form->addRow("Theme", theme);
+    auto *syntax = new QComboBox;
+    syntax->addItem("Automatic");
+    for (const KSyntaxHighlighting::Theme &t : KSyntaxHighlighting::Repository().themes())
+        syntax->addItem(t.name());
+    syntax->setCurrentText(setting("ui/syntaxTheme").toString());
+    form->addRow("Syntax theme", syntax);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
@@ -163,6 +173,7 @@ bool showSettings(QWidget *parent)
     s.setValue("refresh/minutes", refresh->value());
     s.setValue("mail/sendCommand", send->text());
     s.setValue("ui/theme", theme->currentText());
+    s.setValue("ui/syntaxTheme", syntax->currentText());
     applyTheme();
     return true;
 }

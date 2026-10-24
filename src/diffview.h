@@ -22,6 +22,7 @@ public:
     bool wholeFile() const { return m_whole; }
     void setWholeFile(bool whole);
     void rebuild();
+    void refresh();
     void highlightQuote(const QString &line);
     void highlightRefs(const QList<LineRef> &refs);
     void scrollTo(LineRef ref);
@@ -37,6 +38,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *e) override;
     void resizeEvent(QResizeEvent *e) override;
     void changeEvent(QEvent *e) override;
+    void showEvent(QShowEvent *e) override;
 
 private:
     struct Row {
@@ -49,6 +51,8 @@ private:
         QString text;
         bool bold = false;
         QString href;
+        QColor color;
+        bool italic = false;
     };
     struct Editing {
         enum Mode { None, New, Reply, Edit } mode = None;
@@ -62,7 +66,8 @@ private:
     };
 
     QList<Shown> fileLines(int file, bool whole, QString *note) const;
-    void addLine(const Shown &s);
+    void addLines(const QList<Shown> &lines, const QString &path);
+    void addLine(const Shown &s, const QList<Span> &code);
     void addComments(LineRef ref);
     void addBlock(const QColor &bg, int indent, const QList<Span> &parts, const Row &row);
     void startEdit(Editing::Mode mode, LineRef ref, int index);
@@ -81,6 +86,7 @@ private:
     int m_file;
     QString m_path;
     bool m_whole = false;
+    bool m_stale = false;
     QList<Row> m_rows;
     int m_hover = -1;
     Editing m_edit;

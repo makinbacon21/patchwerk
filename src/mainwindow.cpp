@@ -138,8 +138,10 @@ void MainWindow::buildUi()
     act("mail-send", "Send", [this] { sendReplies(); });
     tb->addSeparator();
     act("configure", "Settings", [this] {
-        if (showSettings(this))
+        if (showSettings(this)) {
             restartTimer();
+            rebuildViews();
+        }
     });
 
     m_leftToggle = left->toggleViewAction();
@@ -425,7 +427,7 @@ void MainWindow::rebuildViews()
 {
     for (int i = 1; i < m_tabs->count(); i++)
         if (auto *v = qobject_cast<DiffView *>(m_tabs->widget(i)))
-            v->rebuild();
+            v->refresh();
 }
 
 void MainWindow::rebuildConversation()

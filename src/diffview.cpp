@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Thomas Makin
 
 #include "diffview.h"
+#include "highlight.h"
 
 #include <QAbstractTextDocumentLayout>
 #include <QFile>
@@ -199,6 +200,9 @@ void DiffView::addBlock(const QColor &bg, int indent, const QList<Span> &parts, 
     for (const Span &sp : parts) {
         QTextCharFormat cf;
         cf.setFontWeight(sp.bold ? QFont::Bold : QFont::Normal);
+        cf.setFontItalic(sp.italic);
+        if (sp.color.isValid())
+            cf.setForeground(sp.color);
         if (!sp.href.isEmpty()) {
             cf.setAnchor(true);
             cf.setAnchorHref(sp.href);
@@ -210,7 +214,60 @@ void DiffView::addBlock(const QColor &bg, int indent, const QList<Span> &parts, 
     m_rows << row;
 }
 
-void DiffView::addLine(const Shown &s)
+void DiffView::addLines(const QList<Shown> &lines, const QString &path)
+{
+    bool dark = palette().color(QPalette::Base).lightness() < 128;
+    LineFormats formats(lines.size());
+    for (qsizetype start = 0; start < lines.size();) {
+        qsizetype end = start;
+        while (end < lines.size() && lines[end].line.type != '@')
+            end++;
+        QStringList oldText, newText;
+        QList<qsizetype> oldRows, newRows;
+        bool removed = false;
+        for (qsizetype i = start; i < end; i++) {
+            QChar type = lines[i].line.type;
+            removed |= type == '-';
+            if (type != '+') {
+                oldText << lines[i].line.text;
+                oldRows << i;
+            }
+            if (type != '-') {
+                newText << lines[i].line.text;
+                newRows << i;
+            }
+        }
+        if (removed) {
+            LineFormats f = highlightLines(path, oldText, dark);
+            for (qsizetype k = 0; k < oldRows.size(); k++)
+                formats[oldRows[k]] = f[k];
+        }
+        LineFormats f = highlightLines(path, newText, dark);
+        for (qsizetype k = 0; k < newRows.size(); k++)
+            if (lines[newRows[k]].line.type != '-')
+                formats[newRows[k]] = f[k];
+        start = end + 1;
+    }
+
+    for (qsizetype i = 0; i < lines.size(); i++) {
+        const QString &text = lines[i].line.text;
+        QList<Span> code;
+        int pos = 0;
+        for (const QTextLayout::FormatRange &r : formats[i]) {
+            if (r.start > pos)
+                code << Span{text.mid(pos, r.start - pos)};
+            QColor color = r.format.hasProperty(QTextFormat::ForegroundBrush) ? r.format.foreground().color() : QColor();
+            code << Span{text.mid(r.start, r.length), r.format.fontWeight() >= QFont::Bold, {}, color,
+                         r.format.fontItalic()};
+            pos = r.start + r.length;
+        }
+        if (!code.isEmpty() && pos < text.size())
+            code << Span{text.mid(pos)};
+        addLine(lines[i], code);
+    }
+}
+
+void DiffView::addLine(const Shown &s, const QList<Span> &code)
 {
     Colors col = colors(palette());
     const DiffLine &l = s.line;
@@ -220,7 +277,9 @@ void DiffView::addLine(const Shown &s)
     }
     QString num = QString("%1 %2 ").arg(l.oldNo ? QString::number(l.oldNo) : "", 5).arg(l.newNo ? QString::number(l.newNo) : "", 5);
     QColor bg = l.type == '+' ? col.add : l.type == '-' ? col.del : QColor();
-    addBlock(bg, 0, {{num + l.type + l.text, false}}, {Row::Line, s.ref, -1, l.key()});
+    QList<Span> parts{{num + l.type}};
+    parts += code.isEmpty() ? QList<Span>{{l.text}} : code;
+    addBlock(bg, 0, parts, {Row::Line, s.ref, -1, l.key()});
     if (s.ref.valid())
         addComments(s.ref);
 }
@@ -263,6 +322,9 @@ void DiffView::rebuild()
     int hscroll = horizontalScrollBar()->value();
     clear();
     m_rows.clear();
+    m_stale = false;
+    QTextCursor batch(document());
+    batch.beginEditBlock();
     if ((m_edit.mode == Editing::Edit && m_edit.index >= m_project->drafts.size()) ||
         (m_edit.mode == Editing::Reply && m_edit.index >= m_series->patches[m_patch].comments.size()))
         m_edit = {};
@@ -272,8 +334,7 @@ void DiffView::rebuild()
 
     if (m_patch < 0) {
         QString note;
-        for (const Shown &s : fileLines(-1, true, &note))
-            addLine(s);
+        addLines(fileLines(-1, true, &note), m_path);
     } else if (m_file < 0) {
         const Patch &p = m_series->patches[m_patch];
         addBlock({}, 0, {{m_series->msgs[p.msg].subject + "\n", true}, {p.commitMsg, false}}, {});
@@ -281,17 +342,16 @@ void DiffView::rebuild()
         for (int f = 0; f < p.files.size(); f++) {
             addBlock(col.file, 0, {{p.files[f].path(), true}}, {});
             QString note;
-            for (const Shown &s : fileLines(f, false, &note))
-                addLine(s);
+            addLines(fileLines(f, false, &note), p.files[f].path());
         }
     } else {
         QString note;
         QList<Shown> lines = fileLines(m_file, m_whole, &note);
         if (!note.isEmpty())
             addBlock(col.file, 0, {{note, false}}, {});
-        for (const Shown &s : lines)
-            addLine(s);
+        addLines(lines, m_series->patches[m_patch].files[m_file].path());
     }
+    batch.endEditBlock();
     setTextCursor(QTextCursor(document()));
     verticalScrollBar()->setValue(scroll);
     horizontalScrollBar()->setValue(hscroll);
@@ -331,6 +391,21 @@ void DiffView::styleNav()
                            p.color(QPalette::Mid).name(), p.color(QPalette::Midlight).name());
     m_prev->setStyleSheet(css);
     m_next->setStyleSheet(css);
+}
+
+void DiffView::refresh()
+{
+    if (isVisible())
+        rebuild();
+    else
+        m_stale = true;
+}
+
+void DiffView::showEvent(QShowEvent *e)
+{
+    if (m_stale)
+        rebuild();
+    QTextEdit::showEvent(e);
 }
 
 void DiffView::changeEvent(QEvent *e)

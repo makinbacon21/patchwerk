@@ -16,7 +16,10 @@ Install to `/usr/local` (binary, `.desktop` file and icon):
 cmake -S . -B build && make -C build && sudo make -C build install
 ```
 
-Needs Qt 6.8+, `git` and `b4`. Sending uses `git send-email` by default (package `git-email`).
+Needs Qt 6.8+, KSyntaxHighlighting (KF6), tree-sitter with the C, Rust, Python, Bash, YAML and JSON grammars,
+`git` and `b4`.
+
+`data/queries/` holds each grammar's upstream `highlights.scm`, unmodified, from the release Fedora packages. Sending uses `git send-email` by default (package `git-email`).
 
 ## Use
 

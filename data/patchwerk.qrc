@@ -3,5 +3,11 @@
 <RCC>
     <qresource prefix="/">
         <file alias="patchwerk.png">icons/hicolor/256x256/apps/patchwerk.png</file>
+        <file>queries/c/highlights.scm</file>
+        <file>queries/rust/highlights.scm</file>
+        <file>queries/python/highlights.scm</file>
+        <file>queries/bash/highlights.scm</file>
+        <file>queries/yaml/highlights.scm</file>
+        <file>queries/json/highlights.scm</file>
     </qresource>
 </RCC>
