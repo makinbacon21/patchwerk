@@ -66,17 +66,23 @@ bool Project::load(const QString &file, QString *err)
     return true;
 }
 
+Reply Project::replyTo(const Series &s, const QString &target, const QString &me) const
+{
+    if (replies.contains(target) || !s.byId.contains(target))
+        return replies.value(target);
+    const Message &m = s.msgs[s.byId.value(target)];
+    QStringList cc;
+    for (const QString &a : splitAddresses(m.to) + splitAddresses(m.cc))
+        if (addressEmail(a) != addressEmail(me) && addressEmail(a) != addressEmail(m.from))
+            cc << a;
+    cc.removeDuplicates();
+    return {m.from, cc.join(", "), {}};
+}
+
 Reply &Project::reply(const Series &s, const QString &target, const QString &me)
 {
-    if (!replies.contains(target) && s.byId.contains(target)) {
-        const Message &m = s.msgs[s.byId.value(target)];
-        QStringList cc;
-        for (const QString &a : splitAddresses(m.to) + splitAddresses(m.cc))
-            if (addressEmail(a) != addressEmail(me) && addressEmail(a) != addressEmail(m.from))
-                cc << a;
-        cc.removeDuplicates();
-        replies[target] = {m.from, cc.join(", "), {}};
-    }
+    if (!replies.contains(target))
+        replies[target] = replyTo(s, target, me);
     return replies[target];
 }
 
@@ -101,7 +107,7 @@ QString composeReply(const Series &s, const Project &p, const QString &target, c
     if (mi < 0)
         return {};
     const Message &m = s.msgs[mi];
-    const Reply r = p.replies.value(target);
+    const Reply r = p.replyTo(s, target, from);
     int pi = s.patchForMessage(mi);
     const Patch *patch = pi >= 0 && s.patches[pi].msg == mi ? &s.patches[pi] : nullptr;
 

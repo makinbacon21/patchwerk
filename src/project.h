@@ -31,6 +31,7 @@ struct Project {
 
     bool save(QString *err) const;
     bool load(const QString &file, QString *err);
+    Reply replyTo(const Series &s, const QString &target, const QString &me) const;
     Reply &reply(const Series &s, const QString &target, const QString &me);
     bool hasContent(const QString &target) const;
 };

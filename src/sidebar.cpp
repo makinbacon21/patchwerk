@@ -15,6 +15,7 @@
 #include <QPushButton>
 #include <QSplitter>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QTreeView>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -130,7 +131,15 @@ Sidebar::Sidebar(const Series *s, Project *p, QWidget *parent) : QWidget(parent)
     connect(m_cc, &QLineEdit::textEdited, this, edited);
     connect(m_body, &QPlainTextEdit::textChanged, this, edited);
     connect(m_drafts, &QListWidget::itemActivated, this,
-            [this](QListWidgetItem *it) { emit draftActivated(it->data(Qt::UserRole).toInt()); });
+            [this](QListWidgetItem *it) {
+                int i = it->data(Qt::UserRole).toInt();
+                QTimer::singleShot(0, this, [this, i] {
+                    if (i >= m_project->drafts.size())
+                        return;
+                    selectTarget(m_project->drafts[i].target);
+                    emit draftActivated(i);
+                });
+            });
     connect(maint, &QPushButton::clicked, this, &Sidebar::addMaintainers);
     connect(rb, &QPushButton::clicked, this, [this] { insertTrailer("Reviewed-by"); });
     connect(ab, &QPushButton::clicked, this, [this] { insertTrailer("Acked-by"); });
@@ -216,6 +225,7 @@ void Sidebar::selectTarget(const QString &msgid)
 {
     m_target = msgid;
     refreshDrafter();
+    emit targetChanged();
 }
 
 void Sidebar::refreshDrafter()
@@ -244,10 +254,20 @@ void Sidebar::refreshDrafter()
     m_drafts->clear();
     for (int i = 0; i < m_project->drafts.size(); i++) {
         const Draft &d = m_project->drafts[i];
-        if (d.target != m_target)
+        int mi = m_series->byId.value(d.target, -1);
+        if (mi < 0)
             continue;
-        auto *it = new QListWidgetItem((d.llm ? "[LLM] " : "") + d.text.simplified(), m_drafts);
+        int pi = m_series->patchForMessage(mi);
+        QString to = pi >= 0 && m_series->patches[pi].msg == mi
+                         ? QString("%1/%2").arg(m_series->patches[pi].number).arg(m_series->patches[pi].total)
+                         : QString(QChar(0x21b3)) + " " + addressName(m_series->msgs[mi].from);
+        auto *it = new QListWidgetItem(to + ": " + (d.llm ? "[LLM] " : "") + d.text.simplified(), m_drafts);
         it->setData(Qt::UserRole, i);
+        if (d.target == m_target) {
+            QFont f = it->font();
+            f.setBold(true);
+            it->setFont(f);
+        }
     }
 }
 

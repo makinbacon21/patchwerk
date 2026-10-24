@@ -212,6 +212,7 @@ void MainWindow::buildUi()
         m_sessionTimer.start();
         updateOutgoing();
     });
+    connect(m_side, &Sidebar::targetChanged, this, &MainWindow::updateOutgoing);
     connect(m_side, &Sidebar::draftActivated, this, [this](int i) {
         const Draft &d = m_project.drafts[i];
         int pi = m_series.patchForMessage(m_series.byId.value(d.target, -1));
@@ -445,8 +446,11 @@ void MainWindow::rebuildConversation()
 
 void MainWindow::updateOutgoing()
 {
-    QString t = m_side->target();
-    m_outgoing->setPlainText(t.isEmpty() ? QString() : composeReply(m_series, m_project, t, m_me));
+    QStringList mails;
+    for (const Message &m : m_series.msgs)
+        if (m.msgid == m_side->target() || m_project.hasContent(m.msgid))
+            mails << composeReply(m_series, m_project, m.msgid, m_me);
+    m_outgoing->setPlainText(mails.join("\n" + QString(72, QChar(0x2500)) + "\n\n"));
 }
 
 void MainWindow::showMessage(int msg)

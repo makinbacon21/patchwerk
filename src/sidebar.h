@@ -34,6 +34,7 @@ signals:
     void openPath(const QString &path);
     void messageSelected(int msg);
     void replyEdited();
+    void targetChanged();
     void draftActivated(int draft);
     void addMaintainers();
     void sendRequested();

@@ -139,7 +139,8 @@ void extractComments(Patch &p, const LineIndex &idx, int msg, const QString &bod
         if (b.text.isEmpty())
             continue;
 
-        Comment c{msg, {}, {}, b.quote, b.text.join('\n')};
+        static const QRegularExpression blanks(R"(\n\s*\n(\s*\n)+)");
+        Comment c{msg, {}, {}, b.quote, b.text.join('\n').replace(blanks, "\n\n")};
         int pos = -1;
         for (const QString &q : b.quote) {
             QString s = stripQuote(q);
