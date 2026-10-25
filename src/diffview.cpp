@@ -96,9 +96,8 @@ DiffView::DiffView(const Series *s, Project *p, int patch, int file, const QStri
         b->setCursor(Qt::PointingHandCursor);
         b->hide();
         connect(b, &QToolButton::clicked, this, [this, next] {
-            int y = navTarget(next);
-            if (y >= 0)
-                verticalScrollBar()->setValue(y - fontMetrics().height() * 3);
+            if (int row = navTarget(next); row >= 0)
+                jumpTo(row);
         });
         return b;
     };
@@ -323,6 +322,7 @@ void DiffView::rebuild()
     clear();
     m_rows.clear();
     m_stale = false;
+    m_navRow = -1;
     QTextCursor batch(document());
     batch.beginEditBlock();
     if ((m_edit.mode == Editing::Edit && m_edit.index >= m_project->drafts.size()) ||
@@ -422,24 +422,54 @@ void DiffView::resizeEvent(QResizeEvent *e)
     updateNav();
 }
 
+bool DiffView::isNote(int row) const
+{
+    return m_rows[row].kind == Row::Comment || m_rows[row].kind == Row::Draft;
+}
+
+int DiffView::blockTop(int row) const
+{
+    return int(document()->documentLayout()->blockBoundingRect(document()->findBlockByNumber(row)).top());
+}
+
 int DiffView::navTarget(bool next) const
 {
-    auto isNote = [this](int i) { return m_rows[i].kind == Row::Comment || m_rows[i].kind == Row::Draft; };
     QScrollBar *bar = verticalScrollBar();
-    int top = bar->value() + fontMetrics().height() * 3;
-    if ((next && bar->value() >= bar->maximum()) || (!next && bar->value() <= 0))
-        return -1;
+    bool atJump = m_navRow >= 0 && bar->value() == m_navScroll;
+    int ref = atJump ? blockTop(m_navRow) : bar->value() + viewport()->height() / 2;
     int found = -1;
     for (int i = 0; i < m_rows.size(); i++) {
         if (!isNote(i) || (i > 0 && isNote(i - 1)))
             continue;
-        int y = int(document()->documentLayout()->blockBoundingRect(document()->findBlockByNumber(i)).top());
-        if (next && y > top + 1)
-            return y;
-        if (!next && y < top - 1)
-            found = y;
+        int y = blockTop(i);
+        if (next && y > ref + 1)
+            return i;
+        if (!next && y < ref - 1)
+            found = i;
     }
     return found;
+}
+
+void DiffView::jumpTo(int row)
+{
+    QList<LineRef> refs;
+    for (int i = row; i < m_rows.size() && isNote(i); i++) {
+        refs << m_rows[i].ref;
+        if (m_rows[i].kind == Row::Comment)
+            refs += m_series->patches[m_patch].comments[m_rows[i].index].refs;
+    }
+    int y = blockTop(row);
+    int first = y;
+    for (int i = 0; i < m_rows.size(); i++)
+        if (m_rows[i].kind == Row::Line && refs.contains(m_rows[i].ref))
+            first = std::min(first, blockTop(i));
+    int h = viewport()->height();
+    int top = std::min(y - h / 3, std::max(first - fontMetrics().height(), y - h * 7 / 10));
+    verticalScrollBar()->setValue(top);
+    m_navRow = row;
+    m_navScroll = verticalScrollBar()->value();
+    highlightRefs(refs);
+    updateNav();
 }
 
 void DiffView::updateNav()

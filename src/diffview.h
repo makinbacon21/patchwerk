@@ -74,7 +74,10 @@ private:
     bool commitEdit();
     void endEdit(bool save);
     void placeEditor();
+    bool isNote(int row) const;
+    int blockTop(int row) const;
     int navTarget(bool next) const;
+    void jumpTo(int row);
     void updateNav();
     void styleNav();
     const Row *rowAt(const QPoint &pos) const;
@@ -89,6 +92,8 @@ private:
     bool m_stale = false;
     QList<Row> m_rows;
     int m_hover = -1;
+    int m_navRow = -1;
+    int m_navScroll = 0;
     Editing m_edit;
     QWidget *m_editor;
     QPlainTextEdit *m_editText;

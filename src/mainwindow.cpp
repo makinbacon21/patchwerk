@@ -37,7 +37,7 @@
 
 namespace {
 
-const char *MaintainersUrl = "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/plain/MAINTAINERS";
+const char *MaintainersUrl = "https://raw.githubusercontent.com/torvalds/linux/refs/heads/master/MAINTAINERS";
 
 QString fileDiffText(const FileDiff &f)
 {
@@ -49,6 +49,11 @@ QString fileDiffText(const FileDiff &f)
             out += l.type + l.text + "\n";
     }
     return out;
+}
+
+bool isMaintainers(const QByteArray &data)
+{
+    return data.contains("\nF:\t");
 }
 
 QString sessionDir()
@@ -672,25 +677,32 @@ void MainWindow::withMaintainers(std::function<void(const QString &)> done)
 {
     QString cache = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/MAINTAINERS";
     QString local = m_project.repo.isEmpty() ? QString() : m_project.repo + "/MAINTAINERS";
-    QFileInfo fi(cache);
-    if (fi.exists() && fi.lastModified().secsTo(QDateTime::currentDateTime()) < 24 * 3600) {
+    QFile cached(cache);
+    bool valid = cached.open(QIODevice::ReadOnly) && isMaintainers(cached.readAll());
+    if (valid && QFileInfo(cache).lastModified().secsTo(QDateTime::currentDateTime()) < 24 * 3600) {
         done(cache);
         return;
     }
     m_snack->show("Downloading upstream MAINTAINERS…");
     QNetworkReply *r = m_nam.get(QNetworkRequest(QUrl(MaintainersUrl)));
-    connect(r, &QNetworkReply::finished, this, [this, r, cache, local, done] {
+    connect(r, &QNetworkReply::finished, this, [this, r, cache, local, valid, done] {
         r->deleteLater();
         QByteArray data = r->readAll();
         QFile f(cache);
-        if (r->error() == QNetworkReply::NoError && QDir().mkpath(QFileInfo(cache).absolutePath()) &&
-            f.open(QIODevice::WriteOnly) && f.write(data) == data.size()) {
+        if (r->error() == QNetworkReply::NoError && isMaintainers(data) &&
+            QDir().mkpath(QFileInfo(cache).absolutePath()) && f.open(QIODevice::WriteOnly) &&
+            f.write(data) == data.size()) {
             f.close();
             done(cache);
             return;
         }
-        QString fallback = QFileInfo::exists(cache) ? cache : local;
-        m_snack->show("Cannot download MAINTAINERS (" + r->errorString() + "), using " + fallback, true);
+        QString why = r->error() == QNetworkReply::NoError ? "the server sent something else" : r->errorString();
+        QString fallback = valid ? cache : QFileInfo::exists(local) ? local : QString();
+        if (fallback.isEmpty()) {
+            m_snack->show("Cannot download MAINTAINERS: " + why, true);
+            return;
+        }
+        m_snack->show("Cannot download MAINTAINERS (" + why + "), using " + fallback, true);
         done(fallback);
     });
 }
